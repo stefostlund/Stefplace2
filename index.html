@@ -1,6 +1,6 @@
 <!doctype html>
-<html lang="sv"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>FIT/TCX Activity Inspector v0.5</title><style>body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:#f6f6f8;color:#111;margin:0;padding:14px;max-width:1100px;margin-inline:auto}.card{background:white;border-radius:18px;padding:14px;margin:12px 0;box-shadow:0 2px 12px #0001}.muted{color:#666}button{border:0;border-radius:14px;background:#111;color:white;padding:11px 14px;font-weight:700;margin:4px}button.secondary{background:#e9e9ee;color:#111}input{font-size:16px;padding:9px;border:1px solid #ccc;border-radius:12px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:10px}.metric{background:#f2f2f5;border-radius:15px;padding:11px}.v{font-size:25px;font-weight:800}.l{font-size:12px;color:#666}canvas{width:100%;height:360px;border:1px solid #ddd;border-radius:16px;background:white;touch-action:none}textarea{width:100%;height:100px;border:1px solid #ccc;border-radius:12px;font-family:monospace}.ok{color:#08782e;font-weight:700}.bad{color:#b00020;font-weight:700}table{width:100%;border-collapse:collapse;font-size:13px}td,th{border-bottom:1px solid #eee;padding:7px;text-align:right}td:first-child,th:first-child{text-align:left}</style></head><body>
-<h1>FIT/TCX Activity Inspector v0.5</h1><div class="muted">Stöd för .FIT och .TCX. Medelfart beräknas som sträcka/tid och medelpuls tidsvägs. För hela FIT-aktiviteten används Garmins Session-totaler när de finns, och egen höjdberäkning jämförs med Garmins total stigning/utför. Svart=puls, grå=fart.</div>
+<html lang="sv"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>FIT/TCX Activity Inspector v0.6</title><style>body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:#f6f6f8;color:#111;margin:0;padding:14px;max-width:1100px;margin-inline:auto}.card{background:white;border-radius:18px;padding:14px;margin:12px 0;box-shadow:0 2px 12px #0001}.muted{color:#666}button{border:0;border-radius:14px;background:#111;color:white;padding:11px 14px;font-weight:700;margin:4px}button.secondary{background:#e9e9ee;color:#111}input{font-size:16px;padding:9px;border:1px solid #ccc;border-radius:12px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:10px}.metric{background:#f2f2f5;border-radius:15px;padding:11px}.v{font-size:25px;font-weight:800}.l{font-size:12px;color:#666}canvas{width:100%;height:360px;border:1px solid #ddd;border-radius:16px;background:white;touch-action:none}textarea{width:100%;height:100px;border:1px solid #ccc;border-radius:12px;font-family:monospace}.ok{color:#08782e;font-weight:700}.bad{color:#b00020;font-weight:700}table{width:100%;border-collapse:collapse;font-size:13px}td,th{border-bottom:1px solid #eee;padding:7px;text-align:right}td:first-child,th:first-child{text-align:left}</style></head><body>
+<h1>FIT/TCX Activity Inspector v0.6</h1><div class="muted">Stöd för .FIT och .TCX. Medelfart beräknas som sträcka/tid och medelpuls tidsvägs. För hela FIT-aktiviteten används Garmins Session-totaler när de finns, och egen höjdberäkning jämförs med Garmins total stigning/utför. Svart=puls, grå=fart, blå=höjd.</div>
 <div class="card"><h2>1. Öppna fil</h2><input id="file" type="file" accept=".fit,.FIT,.tcx,.TCX"><button id="demo" class="secondary">Demo</button><div id="status" class="muted">Ingen fil laddad.</div></div>
 <div class="card"><h2>2. Markera tidsperiod</h2><canvas id="chart" width="1000" height="420"></canvas><div><label>Start <input id="startMin" type="number" step="0.1" value="0"> min</label><label>Slut <input id="endMin" type="number" step="0.1" value="10"> min</label><button id="apply" class="secondary">Beräkna</button><button id="full" class="secondary">Hela aktiviteten</button><button id="middle" class="secondary">20–90%</button><button id="after15" class="secondary">Efter 15 min</button></div></div>
 <div class="card"><h2>3. Statistik</h2><div class="grid"><div class="metric"><div class="l">Period</div><div id="mPeriod" class="v">–</div></div><div class="metric"><div class="l">Tid</div><div id="mDur" class="v">–</div></div><div class="metric"><div class="l">Medelpuls</div><div id="mHr" class="v">–</div></div><div class="metric"><div class="l">Maxpuls</div><div id="mHrMax" class="v">–</div></div><div class="metric"><div class="l">Medelfart</div><div id="mSpeed" class="v">–</div></div><div class="metric"><div class="l">Tempo</div><div id="mPace" class="v">–</div></div><div class="metric"><div class="l">Distans</div><div id="mDist" class="v">–</div></div><div class="metric"><div class="l">Total stigning</div><div id="mAscent" class="v">–</div></div><div class="metric"><div class="l">Total utför</div><div id="mDescent" class="v">–</div></div><div class="metric"><div class="l">Nettohöjd</div><div id="mElev" class="v">–</div></div></div><div id="fitCompare" class="muted" style="margin-top:12px">Garmin FIT-kontroll visas här när filen innehåller Session-totaler.</div></div>
@@ -123,7 +123,13 @@ file.onchange=async e=>{let f=e.target.files[0];if(!f)return;try{if(f.name.toLow
 demo.onclick=()=>{fileSummary=null;sourceKind='DEMO';let rec=[],d=0;for(let i=0;i<3000;i++){let speed=i<1500?11.5:12,dadd=speed/3.6;d+=dadd;rec.push({t:FIT_EPOCH+i,hr:120+45*(1-Math.exp(-i/400))+Math.sin(i/70)*3,speed,distance:d,altitude:20+Math.sin(i/200)*5})}load(rec,'demo')}
 
 function sync(){startMin.value=(Math.min(selStart,selEnd)/60).toFixed(1);endMin.value=(Math.max(selStart,selEnd)/60).toFixed(1)}
-function xToT(x){let r=chart.getBoundingClientRect(),T=records.at(-1).elapsed;return Math.max(0,Math.min(T,(x-r.left)/r.width*T))}
+const CHART_L=115,CHART_R=78,CHART_TOP=30,CHART_BOTTOM=52;
+function xToT(x){
+  let r=chart.getBoundingClientRect(),T=records.at(-1).elapsed;
+  let cx=(x-r.left)/r.width*chart.width;
+  let f=(cx-CHART_L)/(chart.width-CHART_L-CHART_R);
+  return Math.max(0,Math.min(T,f*T))
+}
 chart.onpointerdown=e=>{if(!records.length)return;dragging=true;selStart=xToT(e.clientX);selEnd=selStart;draw()};
 chart.onpointermove=e=>{if(!dragging)return;selEnd=xToT(e.clientX);sync();draw();calc()};
 chart.onpointerup=e=>{dragging=false;if(selEnd<selStart)[selStart,selEnd]=[selEnd,selStart];sync();draw();calc()};
@@ -133,13 +139,56 @@ middle.onclick=()=>{let T=records.at(-1).elapsed;selStart=.2*T;selEnd=.9*T;sync(
 after15.onclick=()=>{let T=records.at(-1).elapsed;selStart=Math.min(900,T);selEnd=T;sync();draw();calc()}
 
 function draw(){
-  let c=chart,ctx=c.getContext('2d'),W=c.width,H=c.height;ctx.clearRect(0,0,W,H);ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);if(!records.length)return;
-  let T=records.at(-1).elapsed,hrs=records.map(r=>r.hr).filter(Number.isFinite),sps=records.map(r=>r.speed).filter(Number.isFinite),hmin=Math.min(...hrs)-5,hmax=Math.max(...hrs)+5,spmax=Math.max(...sps,1)+1,px=t=>50+t/T*(W-80),pyh=v=>H-40-(v-hmin)/(hmax-hmin)*(H-70),pys=v=>H-40-v/spmax*(H-70);
-  ctx.strokeStyle='#eee';ctx.font='13px system-ui';for(let i=0;i<6;i++){let t=T*i/5;ctx.beginPath();ctx.moveTo(px(t),25);ctx.lineTo(px(t),H-40);ctx.stroke();ctx.fillStyle='#666';ctx.fillText(secToClock(t),px(t)-18,H-15)}
-  for(let i=0;i<5;i++){let y=hmin+(hmax-hmin)*i/4;ctx.beginPath();ctx.moveTo(50,pyh(y));ctx.lineTo(W-30,pyh(y));ctx.stroke();ctx.fillText(y.toFixed(0),8,pyh(y)+4)}
-  let a=Math.min(selStart,selEnd),b=Math.max(selStart,selEnd);ctx.fillStyle='#0001';ctx.fillRect(px(a),25,px(b)-px(a),H-65);
+  let c=chart,ctx=c.getContext('2d'),W=c.width,H=c.height;
+  ctx.clearRect(0,0,W,H);ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);if(!records.length)return;
+
+  const L=CHART_L,R=CHART_R,TOP=CHART_TOP,BOT=CHART_BOTTOM,PH=H-TOP-BOT;
+  let T=records.at(-1).elapsed;
+  let hrs=records.map(r=>r.hr).filter(Number.isFinite),sps=records.map(r=>r.speed).filter(Number.isFinite),alts=records.map(r=>r.altitude).filter(Number.isFinite);
+
+  // Puls, fart och höjd får var sin skala. Puls och fart skrivs båda på vänster sida,
+  // medan höjd har en separat skala på höger sida. Ingen av skalorna måste börja vid noll.
+  let hLo=hrs.length?Math.min(...hrs):0,hHi=hrs.length?Math.max(...hrs):1;
+  let hPad=Math.max(3,(hHi-hLo)*0.08); let hmin=hLo-hPad,hmax=hHi+hPad;if(hmax<=hmin)hmax=hmin+1;
+  let sLo=sps.length?Math.min(...sps):0,sHi=sps.length?Math.max(...sps):1;
+  let sPad=Math.max(.3,(sHi-sLo)*0.08); let spmin=Math.max(0,sLo-sPad),spmax=sHi+sPad;if(spmax<=spmin)spmax=spmin+1;
+  let aLo=alts.length?Math.min(...alts):0,aHi=alts.length?Math.max(...alts):1;
+  let aPad=Math.max(2,(aHi-aLo)*0.08); let amin=aLo-aPad,amax=aHi+aPad;if(amax<=amin)amax=amin+1;
+
+  let px=t=>L+t/T*(W-L-R),
+      pyh=v=>TOP+(hmax-v)/(hmax-hmin)*PH,
+      pys=v=>TOP+(spmax-v)/(spmax-spmin)*PH,
+      pya=v=>TOP+(amax-v)/(amax-amin)*PH;
+
+  // Rutnät och tidsaxel — större text för läsbarhet.
+  ctx.font='16px system-ui';ctx.textBaseline='middle';ctx.strokeStyle='#e5e5e5';ctx.lineWidth=1;
+  for(let i=0;i<6;i++){
+    let t=T*i/5,x=px(t);ctx.beginPath();ctx.moveTo(x,TOP);ctx.lineTo(x,H-BOT);ctx.stroke();
+    ctx.fillStyle='#555';ctx.textAlign='center';ctx.fillText(secToClock(t),x,H-22)
+  }
+
+  // Horisontella linjer med två vänsterskalor och höjdskala till höger.
+  for(let i=0;i<5;i++){
+    let f=i/4,y=TOP+PH*(1-f),hv=hmin+(hmax-hmin)*f,sv=spmin+(spmax-spmin)*f,av=amin+(amax-amin)*f;
+    ctx.beginPath();ctx.moveTo(L,y);ctx.lineTo(W-R,y);ctx.stroke();
+    ctx.fillStyle='#222';ctx.textAlign='right';ctx.fillText(hv.toFixed(0),48,y);
+    ctx.fillStyle='#666';ctx.fillText(sv.toFixed(1),105,y);
+    ctx.fillStyle='#1565c0';ctx.textAlign='left';ctx.fillText(av.toFixed(0),W-R+8,y)
+  }
+  ctx.font='bold 15px system-ui';ctx.textBaseline='alphabetic';
+  ctx.fillStyle='#222';ctx.textAlign='right';ctx.fillText('puls',48,19);
+  ctx.fillStyle='#666';ctx.fillText('km/h',105,19);
+  ctx.fillStyle='#1565c0';ctx.textAlign='left';ctx.fillText('höjd m',W-R+8,19);
+
+  let a=Math.min(selStart,selEnd),b=Math.max(selStart,selEnd);
+  ctx.fillStyle='#00000010';ctx.fillRect(px(a),TOP,px(b)-px(a),PH);
+
+  // Höjd ritas först så puls/fart ligger tydligt ovanpå.
+  if(alts.length){ctx.strokeStyle='#1565c0';ctx.lineWidth=2;ctx.setLineDash([6,4]);ctx.beginPath();let st=false;records.forEach(r=>{if(!Number.isFinite(r.altitude))return;let x=px(r.elapsed),y=pya(r.altitude);if(!st){ctx.moveTo(x,y);st=true}else ctx.lineTo(x,y)});ctx.stroke();ctx.setLineDash([])}
   ctx.strokeStyle='#111';ctx.lineWidth=2;ctx.beginPath();let st=false;records.forEach(r=>{if(!Number.isFinite(r.hr))return;let x=px(r.elapsed),y=pyh(r.hr);if(!st){ctx.moveTo(x,y);st=true}else ctx.lineTo(x,y)});ctx.stroke();
-  ctx.strokeStyle='#777';ctx.beginPath();st=false;records.forEach(r=>{if(!Number.isFinite(r.speed))return;let x=px(r.elapsed),y=pys(r.speed);if(!st){ctx.moveTo(x,y);st=true}else ctx.lineTo(x,y)});ctx.stroke();ctx.fillStyle='#111';ctx.fillText('Svart=puls, grå=fart',W-170,20)
+  ctx.strokeStyle='#777';ctx.lineWidth=2;ctx.beginPath();st=false;records.forEach(r=>{if(!Number.isFinite(r.speed))return;let x=px(r.elapsed),y=pys(r.speed);if(!st){ctx.moveTo(x,y);st=true}else ctx.lineTo(x,y)});ctx.stroke();
+
+  ctx.font='15px system-ui';ctx.textAlign='right';ctx.fillStyle='#111';ctx.fillText('Svart=puls   grå=fart   blå streckad=höjd',W-R,H-5)
 }
 
 function valueAt(t,field){
