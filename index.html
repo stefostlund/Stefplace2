@@ -1,20 +1,100 @@
 <!doctype html>
-<html lang="sv"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>FIT/TCX Activity Inspector v0.6</title><style>body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:#f6f6f8;color:#111;margin:0;padding:14px;max-width:1100px;margin-inline:auto}.card{background:white;border-radius:18px;padding:14px;margin:12px 0;box-shadow:0 2px 12px #0001}.muted{color:#666}button{border:0;border-radius:14px;background:#111;color:white;padding:11px 14px;font-weight:700;margin:4px}button.secondary{background:#e9e9ee;color:#111}input{font-size:16px;padding:9px;border:1px solid #ccc;border-radius:12px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:10px}.metric{background:#f2f2f5;border-radius:15px;padding:11px}.v{font-size:25px;font-weight:800}.l{font-size:12px;color:#666}canvas{width:100%;height:360px;border:1px solid #ddd;border-radius:16px;background:white;touch-action:none}textarea{width:100%;height:100px;border:1px solid #ccc;border-radius:12px;font-family:monospace}.ok{color:#08782e;font-weight:700}.bad{color:#b00020;font-weight:700}table{width:100%;border-collapse:collapse;font-size:13px}td,th{border-bottom:1px solid #eee;padding:7px;text-align:right}td:first-child,th:first-child{text-align:left}</style></head><body>
-<h1>FIT/TCX Activity Inspector v0.6</h1><div class="muted">Stöd för .FIT och .TCX. Medelfart beräknas som sträcka/tid och medelpuls tidsvägs. För hela FIT-aktiviteten används Garmins Session-totaler när de finns, och egen höjdberäkning jämförs med Garmins total stigning/utför. Svart=puls, grå=fart, blå=höjd.</div>
-<div class="card"><h2>1. Öppna fil</h2><input id="file" type="file" accept=".fit,.FIT,.tcx,.TCX"><button id="demo" class="secondary">Demo</button><div id="status" class="muted">Ingen fil laddad.</div></div>
-<div class="card"><h2>2. Markera tidsperiod</h2><canvas id="chart" width="1000" height="420"></canvas><div><label>Start <input id="startMin" type="number" step="0.1" value="0"> min</label><label>Slut <input id="endMin" type="number" step="0.1" value="10"> min</label><button id="apply" class="secondary">Beräkna</button><button id="full" class="secondary">Hela aktiviteten</button><button id="middle" class="secondary">20–90%</button><button id="after15" class="secondary">Efter 15 min</button></div></div>
-<div class="card"><h2>3. Statistik</h2><div class="grid"><div class="metric"><div class="l">Period</div><div id="mPeriod" class="v">–</div></div><div class="metric"><div class="l">Tid</div><div id="mDur" class="v">–</div></div><div class="metric"><div class="l">Medelpuls</div><div id="mHr" class="v">–</div></div><div class="metric"><div class="l">Maxpuls</div><div id="mHrMax" class="v">–</div></div><div class="metric"><div class="l">Medelfart</div><div id="mSpeed" class="v">–</div></div><div class="metric"><div class="l">Tempo</div><div id="mPace" class="v">–</div></div><div class="metric"><div class="l">Distans</div><div id="mDist" class="v">–</div></div><div class="metric"><div class="l">Total stigning</div><div id="mAscent" class="v">–</div></div><div class="metric"><div class="l">Total utför</div><div id="mDescent" class="v">–</div></div><div class="metric"><div class="l">Nettohöjd</div><div id="mElev" class="v">–</div></div></div><div id="fitCompare" class="muted" style="margin-top:12px">Garmin FIT-kontroll visas här när filen innehåller Session-totaler.</div></div>
-<div class="card"><h2>4. Export till Step 2</h2><button id="makeRow">Skapa rad</button><textarea id="rowBox"></textarea><table id="preview"></table></div>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FIT/TCX Activity Inspector v0.9</title>
+<style>
+body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:#f6f6f8;color:#111;margin:0;padding:14px;max-width:1100px;margin-inline:auto}
+.card{background:white;border-radius:18px;padding:14px;margin:12px 0;box-shadow:0 2px 12px #0001}
+.muted{color:#666}.ok{color:#08782e;font-weight:700}.bad{color:#b00020;font-weight:700}
+button{border:0;border-radius:14px;background:#111;color:white;padding:11px 14px;font-weight:700;margin:4px}
+button.secondary{background:#e9e9ee;color:#111}
+input,select{font-size:16px;padding:9px;border:1px solid #ccc;border-radius:12px;background:white}
+label{display:inline-flex;align-items:center;gap:6px;margin:4px 8px 4px 0}
+.controls{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin:8px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:10px}
+.metric{background:#f2f2f5;border-radius:15px;padding:11px}.v{font-size:25px;font-weight:800}.l{font-size:12px;color:#666}
+canvas{width:100%;height:360px;border:1px solid #ddd;border-radius:16px;background:white;touch-action:none}
+textarea{width:100%;height:120px;border:1px solid #ccc;border-radius:12px;font-family:monospace}
+table{width:100%;border-collapse:collapse;font-size:13px}td,th{border-bottom:1px solid #eee;padding:7px;text-align:right}td:first-child,th:first-child{text-align:left}
+.compare{margin-top:12px;padding:10px;background:#f7f7f9;border-radius:12px}
+.series-picks{display:flex;flex-wrap:wrap;gap:5px 14px;align-items:center}.series-picks label{font-weight:650}.swatch{display:inline-block;width:14px;height:4px;border-radius:3px;vertical-align:middle}.axis-note{font-size:13px;color:#666;margin-top:2px}
+</style>
+</head>
+<body>
+<h1>FIT/TCX Activity Inspector v0.9</h1>
+<div class="muted">Stöd för .FIT och .TCX. v0.9 innehåller Fēnix 9-fixen och flerkurvsdiagram: Puls visas alltid, Effekt väljs automatiskt när den finns (annars Fart), och du kan lägga till Fart, Effekt, Höjd och Rörelsefrekvens samtidigt. Varje kurva får automatisk egen skala.</div>
+
+<div class="card">
+<h2>1. Öppna fil</h2>
+<input id="file" type="file" accept=".fit,.FIT,.tcx,.TCX">
+<button id="demo" class="secondary">Demo</button>
+<div id="status" class="muted">Ingen fil laddad.</div>
+</div>
+
+<div class="card">
+<h2>2. Diagram och tidsperiod</h2>
+<div class="controls series-picks">
+<label><input id="showHr" type="checkbox" checked disabled> <span class="swatch" style="background:#111"></span> Puls (alltid)</label>
+<label><input id="showPower" type="checkbox"> <span class="swatch" style="background:#e67e22"></span> Effekt</label>
+<label><input id="showSpeed" type="checkbox"> <span class="swatch" style="background:#666"></span> Fart</label>
+<label><input id="showAltitude" type="checkbox"> <span class="swatch" style="background:#1565c0"></span> Höjd</label>
+<label><input id="showFrequency" type="checkbox"> <span class="swatch" style="background:#7b1fa2"></span> Rörelsefrekvens</label>
+<label><input id="zoomOnSelect" type="checkbox"> Zooma på markering</label>
+</div>
+<div class="axis-note">Puls använder vänster y-axel. Varje extra vald kurva får en egen färgad, automatiskt skalad y-axel till höger.</div>
+<canvas id="chart" width="1000" height="420"></canvas>
+<div class="controls">
+<label>Start <input id="startMin" type="number" step="0.1" value="0"> min</label>
+<label>Slut <input id="endMin" type="number" step="0.1" value="10"> min</label>
+<button id="apply" class="secondary">Beräkna</button>
+<button id="full" class="secondary">Hela aktiviteten</button>
+<button id="middle" class="secondary">20–90%</button>
+<button id="after15" class="secondary">Efter 15 min</button>
+</div>
+<div class="muted">Dra i diagrammet för att markera. Med “Zooma på markering” aktiverat förstoras intervallet när du släpper. Alla ikryssade kurvor visas samtidigt med automatisk skala; höjd visas blå streckad. “Hela aktiviteten” återställer både markering och zoom.</div>
+</div>
+
+<div class="card">
+<h2>3. Statistik</h2>
+<div class="grid">
+<div class="metric"><div class="l">Period</div><div id="mPeriod" class="v">–</div></div>
+<div class="metric"><div class="l">Tid</div><div id="mDur" class="v">–</div></div>
+<div class="metric"><div class="l">Medelpuls</div><div id="mHr" class="v">–</div></div>
+<div class="metric"><div class="l">Maxpuls</div><div id="mHrMax" class="v">–</div></div>
+<div class="metric"><div class="l">Medelfart</div><div id="mSpeed" class="v">–</div></div>
+<div class="metric"><div class="l">Tempo</div><div id="mPace" class="v">–</div></div>
+<div class="metric"><div class="l">Medel­effekt</div><div id="mPower" class="v">–</div></div>
+<div class="metric"><div class="l">Rörelsefrekvens</div><div id="mFreq" class="v">–</div></div>
+<div class="metric"><div class="l">Distans</div><div id="mDist" class="v">–</div></div>
+<div class="metric"><div class="l">Egen stigning</div><div id="mAscent" class="v">–</div></div>
+<div class="metric"><div class="l">Eget utför</div><div id="mDescent" class="v">–</div></div>
+<div class="metric"><div class="l">Höjdskillnad start–slut</div><div id="mElev" class="v">–</div></div>
+</div>
+<div id="fitCompare" class="compare muted">Garmin FIT-kontroll visas här när filen innehåller Session-totaler.</div>
+</div>
+
+<div class="card">
+<h2>4. Export till Step 2</h2>
+<button id="makeRow">Skapa rad</button>
+<textarea id="rowBox"></textarea>
+<table id="preview"></table>
+</div>
+
 <script>
-let records=[],selStart=0,selEnd=0,dragging=false,fileSummary=null,sourceKind='';
+let records=[],selStart=0,selEnd=0,dragging=false,fileSummary=null,sourceKind='',viewStart=0,viewEnd=0;
 const $=id=>document.getElementById(id),FIT_EPOCH=Date.UTC(1989,11,31)/1000;
+const file=$('file'),status=$('status'),demo=$('demo'),chart=$('chart'),startMin=$('startMin'),endMin=$('endMin'),apply=$('apply'),full=$('full'),middle=$('middle'),after15=$('after15');
+const showHr=$('showHr'),showPower=$('showPower'),showSpeed=$('showSpeed'),showAltitude=$('showAltitude'),showFrequency=$('showFrequency'),zoomOnSelect=$('zoomOnSelect');
+const mPeriod=$('mPeriod'),mDur=$('mDur'),mHr=$('mHr'),mHrMax=$('mHrMax'),mSpeed=$('mSpeed'),mPace=$('mPace'),mPower=$('mPower'),mFreq=$('mFreq'),mDist=$('mDist'),mAscent=$('mAscent'),mDescent=$('mDescent'),mElev=$('mElev'),fitCompare=$('fitCompare'),makeRow=$('makeRow'),rowBox=$('rowBox'),preview=$('preview');
 function fmt(x,d=1){return Number.isFinite(x)?x.toFixed(d):'–'}
 function secToClock(s){if(!Number.isFinite(s))return'–';s=Math.max(0,Math.round(s));let h=Math.floor(s/3600),m=Math.floor((s%3600)/60),ss=s%60;return h?`${h}:${String(m).padStart(2,'0')}:${String(ss).padStart(2,'0')}`:`${m}:${String(ss).padStart(2,'0')}`}
 function pace(k){if(!k||k<=0)return'–';let s=3600/k;return`${Math.floor(s/60)}:${String(Math.round(s%60)).padStart(2,'0')}/km`}
 function mean(a){a=a.filter(Number.isFinite);return a.length?a.reduce((x,y)=>x+y,0)/a.length:NaN}
 
 function parseTcx(text){
-  fileSummary=null; sourceKind='TCX';
+  fileSummary=null;sourceKind='TCX';
   let xml=new DOMParser().parseFromString(text,'application/xml');
   if(xml.querySelector('parsererror'))throw Error('TCX kunde inte läsas.');
   let pts=[...xml.getElementsByTagNameNS('*','Trackpoint')],out=[];
@@ -23,17 +103,14 @@ function parseTcx(text){
     let ts=get('Time');if(!ts)continue;
     let t=Date.parse(ts)/1000,hr=NaN,hre=tp.getElementsByTagNameNS('*','HeartRateBpm')[0];
     if(hre){let v=hre.getElementsByTagNameNS('*','Value')[0];if(v)hr=+v.textContent.trim()}
-    let distance=+get('DistanceMeters'),altitude=+get('AltitudeMeters'),speed=NaN;
+    let distance=+get('DistanceMeters'),altitude=+get('AltitudeMeters'),speed=NaN,power=NaN,cadence=NaN;
     let se=tp.getElementsByTagNameNS('*','Speed');if(se.length){let v=+se[0].textContent.trim();if(Number.isFinite(v))speed=v*3.6}
-    out.push({t,hr,distance,altitude,speed})
+    let pe=tp.getElementsByTagNameNS('*','Watts');if(pe.length){let v=+pe[0].textContent.trim();if(Number.isFinite(v))power=v}
+    let ce=tp.getElementsByTagNameNS('*','Cadence');if(ce.length){let v=+ce[0].textContent.trim();if(Number.isFinite(v))cadence=v}
+    out.push({t,hr,distance,altitude,speed,power,frequencyRaw:cadence,frequencyNormalized:cadence});
   }
-  // TCX Lap kan ge officiell tid/distans, men normalt inte Garmins total ascent/descent.
   let laps=[...xml.getElementsByTagNameNS('*','Lap')],timer=0,dist=0;
-  for(let lap of laps){
-    let tt=lap.getElementsByTagNameNS('*','TotalTimeSeconds')[0],dd=lap.getElementsByTagNameNS('*','DistanceMeters')[0];
-    let tv=tt?+tt.textContent.trim():NaN,dv=dd?+dd.textContent.trim():NaN;
-    if(Number.isFinite(tv))timer+=tv;if(Number.isFinite(dv))dist+=dv;
-  }
+  for(let lap of laps){let tt=lap.getElementsByTagNameNS('*','TotalTimeSeconds')[0],dd=lap.getElementsByTagNameNS('*','DistanceMeters')[0];let tv=tt?+tt.textContent.trim():NaN,dv=dd?+dd.textContent.trim():NaN;if(Number.isFinite(tv))timer+=tv;if(Number.isFinite(dv))dist+=dv}
   if(timer>0||dist>0)fileSummary={totalTimer:timer||NaN,totalDistance:dist||NaN};
   return out.sort((a,b)=>a.t-b.t)
 }
@@ -41,7 +118,7 @@ function parseTcx(text){
 function ru(dv,o,s,l,sg=false){if(s==1)return sg?dv.getInt8(o):dv.getUint8(o);if(s==2)return sg?dv.getInt16(o,l):dv.getUint16(o,l);if(s==4)return sg?dv.getInt32(o,l):dv.getUint32(o,l);return NaN}
 function bs(b){return[0x83,0x85,0x86,0x8e].includes(b)}
 function parseFit(buf){
-  sourceKind='FIT'; fileSummary=null;
+  sourceKind='FIT';fileSummary=null;
   let dv=new DataView(buf),hs=dv.getUint8(0);
   if(String.fromCharCode(...new Uint8Array(buf,8,4))!='.FIT')throw Error('Inte FIT.');
   let off=hs,end=hs+dv.getUint32(4,true),defs={},out=[],lastTs=0,sessions=[];
@@ -53,8 +130,10 @@ function parseFit(buf){
       if(def.global==20){
         if(f.num==253)r.timestamp=v;
         else if(f.num==3)r.hr=v==255?NaN:v;
+        else if(f.num==4)r.cadence=v==255?NaN:v;
         else if(f.num==5)r.distance=v/100;
         else if(f.num==6)r.speed=v/1000*3.6;
+        else if(f.num==7)r.power=v==65535?NaN:v;
         else if(f.num==2)r.altitude=v/5-500;
         else if(f.num==73)r.speed=v/1000*3.6;
         else if(f.num==78)r.altitude=v/5-500;
@@ -70,6 +149,8 @@ function parseFit(buf){
       avgSpeed:Number.isFinite(x[124])?x[124]/1000*3.6:(Number.isFinite(x[14])?x[14]/1000*3.6:NaN),
       avgHr:Number.isFinite(x[16])&&x[16]!==255?x[16]:NaN,
       maxHr:Number.isFinite(x[17])&&x[17]!==255?x[17]:NaN,
+      avgPower:Number.isFinite(x[20])&&x[20]!==65535?x[20]:NaN,
+      maxPower:Number.isFinite(x[21])&&x[21]!==65535?x[21]:NaN,
       totalAscent:Number.isFinite(x[22])&&x[22]!==65535?x[22]:NaN,
       totalDescent:Number.isFinite(x[23])&&x[23]!==65535?x[23]:NaN
     };sessions.push(s)
@@ -79,7 +160,7 @@ function parseFit(buf){
     if(h&0x80){
       let local=(h>>5)&3,to=h&31,def=defs[local];if(!def)break;
       let r=readRec(def),nts=(lastTs&~31)+to;if(nts<=lastTs-16)nts+=32;lastTs=nts;r.timestamp=lastTs;
-      if(def.global==20)out.push({t:r.timestamp+FIT_EPOCH,hr:r.hr,speed:r.speed,distance:r.distance,altitude:r.altitude});
+      if(def.global==20)out.push({t:r.timestamp+FIT_EPOCH,hr:r.hr,speed:r.speed,distance:r.distance,altitude:r.altitude,power:r.power,frequencyRaw:r.cadence,frequencyNormalized:r.cadence});
       else if(def.global==18)addSession(r);
       continue
     }
@@ -88,22 +169,26 @@ function parseFit(buf){
       off++;let little=dv.getUint8(off++)==0,global=dv.getUint16(off,little);off+=2;
       let n=dv.getUint8(off++),fields=[],size=0;
       for(let i=0;i<n;i++){let num=dv.getUint8(off++),sz=dv.getUint8(off++),base=dv.getUint8(off++);fields.push({num,size:sz,base});size+=sz}
-      if(h&0x20){let dn=dv.getUint8(off++);off+=3*dn}
+      if(h&0x20){
+        let dn=dv.getUint8(off++);
+        // Fēnix 9/newer FIT: developer field values are appended to each record.
+        // Their declared sizes must count toward the record length or parsing becomes misaligned.
+        for(let i=0;i<dn;i++){off++;let dsz=dv.getUint8(off++);off++;size+=dsz}
+      }
       defs[local]={global,little,fields,size}
     }else{
       let def=defs[local];if(!def)break;let r=readRec(def);
       if(Number.isFinite(r.timestamp))lastTs=r.timestamp;
-      if(def.global==20&&Number.isFinite(r.timestamp))out.push({t:r.timestamp+FIT_EPOCH,hr:r.hr,speed:r.speed,distance:r.distance,altitude:r.altitude});
+      if(def.global==20&&Number.isFinite(r.timestamp))out.push({t:r.timestamp+FIT_EPOCH,hr:r.hr,speed:r.speed,distance:r.distance,altitude:r.altitude,power:r.power,frequencyRaw:r.cadence,frequencyNormalized:r.cadence});
       else if(def.global==18)addSession(r)
     }
   }
   if(sessions.length){
     let sum=k=>{let a=sessions.map(s=>s[k]).filter(Number.isFinite);return a.length?a.reduce((x,y)=>x+y,0):NaN};
     let totalTimer=sum('totalTimer'),totalDistance=sum('totalDistance'),totalElapsed=sum('totalElapsed'),totalAscent=sum('totalAscent'),totalDescent=sum('totalDescent');
-    let avgHr=NaN,ws=0,w=0;for(let s of sessions){if(Number.isFinite(s.avgHr)){let wt=Number.isFinite(s.totalTimer)&&s.totalTimer>0?s.totalTimer:1;ws+=s.avgHr*wt;w+=wt}}
-    if(w)avgHr=ws/w;
-    let maxs=sessions.map(s=>s.maxHr).filter(Number.isFinite),maxHr=maxs.length?Math.max(...maxs):NaN;
-    fileSummary={totalElapsed,totalTimer,totalDistance,totalAscent,totalDescent,avgHr,maxHr,sessions:sessions.length};
+    let weighted=k=>{let ws=0,w=0;for(let s of sessions){if(Number.isFinite(s[k])){let wt=Number.isFinite(s.totalTimer)&&s.totalTimer>0?s.totalTimer:1;ws+=s[k]*wt;w+=wt}}return w?ws/w:NaN};
+    let maxOf=k=>{let a=sessions.map(s=>s[k]).filter(Number.isFinite);return a.length?Math.max(...a):NaN};
+    fileSummary={totalElapsed,totalTimer,totalDistance,totalAscent,totalDescent,avgHr:weighted('avgHr'),maxHr:maxOf('maxHr'),avgPower:weighted('avgPower'),maxPower:maxOf('maxPower'),sessions:sessions.length};
   }
   return out.sort((a,b)=>a.t-b.t)
 }
@@ -114,105 +199,94 @@ function norm(recs){
 }
 function load(recs,name){
   records=norm(recs);if(!records.length){status.innerHTML='<span class="bad">Inga data.</span>';return}
-  selStart=0;selEnd=records.at(-1).elapsed;sync();
+  selStart=0;selEnd=records.at(-1).elapsed;viewStart=0;viewEnd=selEnd;sync();
+  updateSeriesDefaults();
   let extra=fileSummary&&Number.isFinite(fileSummary.totalTimer)?` Garmin-tid ${secToClock(fileSummary.totalTimer)}.`:'';
   status.innerHTML=`<span class="ok">Laddad:</span> ${name} — ${records.length} punkter, datapunkter ${secToClock(selEnd)}.${extra}`;
   draw();calc()
 }
 file.onchange=async e=>{let f=e.target.files[0];if(!f)return;try{if(f.name.toLowerCase().endsWith('.tcx'))load(parseTcx(await f.text()),f.name);else load(parseFit(await f.arrayBuffer()),f.name)}catch(err){status.innerHTML='<span class="bad">Fel:</span> '+err.message}};
-demo.onclick=()=>{fileSummary=null;sourceKind='DEMO';let rec=[],d=0;for(let i=0;i<3000;i++){let speed=i<1500?11.5:12,dadd=speed/3.6;d+=dadd;rec.push({t:FIT_EPOCH+i,hr:120+45*(1-Math.exp(-i/400))+Math.sin(i/70)*3,speed,distance:d,altitude:20+Math.sin(i/200)*5})}load(rec,'demo')}
+demo.onclick=()=>{fileSummary=null;sourceKind='DEMO';let rec=[],d=0;for(let i=0;i<3000;i++){let speed=i<1500?11.5:12,dadd=speed/3.6;d+=dadd;rec.push({t:FIT_EPOCH+i,hr:120+45*(1-Math.exp(-i/400))+Math.sin(i/70)*3,speed,distance:d,altitude:20+Math.sin(i/200)*5,power:140+25*Math.sin(i/110),frequencyRaw:82+3*Math.sin(i/80),frequencyNormalized:82+3*Math.sin(i/80)})}load(rec,'demo')};
 
 function sync(){startMin.value=(Math.min(selStart,selEnd)/60).toFixed(1);endMin.value=(Math.max(selStart,selEnd)/60).toFixed(1)}
-const CHART_L=115,CHART_R=78,CHART_TOP=30,CHART_BOTTOM=52;
+const CHART_L=76,CHART_TOP=48,CHART_BOTTOM=52,AXIS_COL=64,BASE_RIGHT=18;
+function selectedRightMetricKeys(){
+  let keys=[];if(showPower.checked)keys.push('power');if(showSpeed.checked)keys.push('speed');if(showAltitude.checked)keys.push('altitude');if(showFrequency.checked)keys.push('frequencyNormalized');return keys
+}
+function chartRightMargin(){return BASE_RIGHT+selectedRightMetricKeys().length*AXIS_COL}
 function xToT(x){
-  let r=chart.getBoundingClientRect(),T=records.at(-1).elapsed;
-  let cx=(x-r.left)/r.width*chart.width;
-  let f=(cx-CHART_L)/(chart.width-CHART_L-CHART_R);
-  return Math.max(0,Math.min(T,f*T))
+  let r=chart.getBoundingClientRect(),v0=viewStart,v1=viewEnd||records.at(-1).elapsed,R=chartRightMargin();
+  let cx=(x-r.left)/r.width*chart.width;let f=(cx-CHART_L)/(chart.width-CHART_L-R);
+  return Math.max(v0,Math.min(v1,v0+f*(v1-v0)))
 }
 chart.onpointerdown=e=>{if(!records.length)return;dragging=true;selStart=xToT(e.clientX);selEnd=selStart;draw()};
 chart.onpointermove=e=>{if(!dragging)return;selEnd=xToT(e.clientX);sync();draw();calc()};
-chart.onpointerup=e=>{dragging=false;if(selEnd<selStart)[selStart,selEnd]=[selEnd,selStart];sync();draw();calc()};
-apply.onclick=()=>{selStart=+startMin.value*60;selEnd=+endMin.value*60;if(selEnd<selStart)[selStart,selEnd]=[selEnd,selStart];draw();calc()};
-full.onclick=()=>{selStart=0;selEnd=records.at(-1).elapsed;sync();draw();calc()};
-middle.onclick=()=>{let T=records.at(-1).elapsed;selStart=.2*T;selEnd=.9*T;sync();draw();calc()};
-after15.onclick=()=>{let T=records.at(-1).elapsed;selStart=Math.min(900,T);selEnd=T;sync();draw();calc()}
+chart.onpointerup=e=>{if(!dragging)return;dragging=false;if(selEnd<selStart)[selStart,selEnd]=[selEnd,selStart];sync();calc();if(zoomOnSelect.checked&&selEnd-selStart>1){viewStart=selStart;viewEnd=selEnd}draw()};
+apply.onclick=()=>{selStart=+startMin.value*60;selEnd=+endMin.value*60;if(selEnd<selStart)[selStart,selEnd]=[selEnd,selStart];selStart=Math.max(0,selStart);selEnd=Math.min(records.length?records.at(-1).elapsed:selEnd,selEnd);if(zoomOnSelect.checked&&selEnd-selStart>1){viewStart=selStart;viewEnd=selEnd}draw();calc()};
+full.onclick=()=>{if(!records.length)return;selStart=0;selEnd=records.at(-1).elapsed;viewStart=0;viewEnd=selEnd;sync();draw();calc()};
+middle.onclick=()=>{if(!records.length)return;let T=records.at(-1).elapsed;selStart=.2*T;selEnd=.9*T;sync();if(zoomOnSelect.checked){viewStart=selStart;viewEnd=selEnd}draw();calc()};
+after15.onclick=()=>{if(!records.length)return;let T=records.at(-1).elapsed;selStart=Math.min(900,T);selEnd=T;sync();if(zoomOnSelect.checked){viewStart=selStart;viewEnd=selEnd}draw();calc()};
+[showPower,showSpeed,showAltitude,showFrequency].forEach(el=>el.onchange=draw);
 
+const METRICS={
+ hr:{label:'Puls',unit:'bpm',field:'hr',digits:0,color:'#111111',dashed:false},
+ power:{label:'Effekt',unit:'W',field:'power',digits:0,color:'#e67e22',dashed:false},
+ speed:{label:'Fart',unit:'km/h',field:'speed',digits:1,color:'#666666',dashed:false},
+ altitude:{label:'Höjd',unit:'m',field:'altitude',digits:0,color:'#1565c0',dashed:true},
+ frequencyNormalized:{label:'Rörelsefrekvens',unit:'cpm',field:'frequencyNormalized',digits:0,color:'#7b1fa2',dashed:false}
+};
+function hasMetricData(key){let m=METRICS[key];return !!m&&records.some(r=>Number.isFinite(r[m.field]))}
+function updateSeriesDefaults(){
+  let availability={power:hasMetricData('power'),speed:hasMetricData('speed'),altitude:hasMetricData('altitude'),frequencyNormalized:hasMetricData('frequencyNormalized')};
+  showPower.disabled=!availability.power;showSpeed.disabled=!availability.speed;showAltitude.disabled=!availability.altitude;showFrequency.disabled=!availability.frequencyNormalized;
+  showPower.checked=availability.power;showSpeed.checked=!availability.power&&availability.speed;showAltitude.checked=false;showFrequency.checked=false;
+}
+function metricExtent(metric,recset){
+  let vals=recset.map(r=>r[metric.field]).filter(Number.isFinite);if(!vals.length)return null;
+  let lo=Math.min(...vals),hi=Math.max(...vals),span=Math.max(hi-lo,Math.abs(hi)*0.02,1);
+  let pad=span*.08;if(metric.field==='speed'||metric.field==='power')lo=Math.max(0,lo-pad);else lo-=pad;hi+=pad;if(hi<=lo)hi=lo+1;return{lo,hi}
+}
+function drawSeries(ctx,recset,field,px,py,dashed=false){
+  ctx.lineWidth=2.2;ctx.setLineDash(dashed?[7,4]:[]);ctx.beginPath();let started=false;
+  for(let r of recset){let v=r[field];if(!Number.isFinite(v))continue;let x=px(r.elapsed),y=py(v);if(!started){ctx.moveTo(x,y);started=true}else ctx.lineTo(x,y)}
+  if(started)ctx.stroke();ctx.setLineDash([])
+}
 function draw(){
-  let c=chart,ctx=c.getContext('2d'),W=c.width,H=c.height;
-  ctx.clearRect(0,0,W,H);ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);if(!records.length)return;
-
-  const L=CHART_L,R=CHART_R,TOP=CHART_TOP,BOT=CHART_BOTTOM,PH=H-TOP-BOT;
-  let T=records.at(-1).elapsed;
-  let hrs=records.map(r=>r.hr).filter(Number.isFinite),sps=records.map(r=>r.speed).filter(Number.isFinite),alts=records.map(r=>r.altitude).filter(Number.isFinite);
-
-  // Puls, fart och höjd får var sin skala. Puls och fart skrivs båda på vänster sida,
-  // medan höjd har en separat skala på höger sida. Ingen av skalorna måste börja vid noll.
-  let hLo=hrs.length?Math.min(...hrs):0,hHi=hrs.length?Math.max(...hrs):1;
-  let hPad=Math.max(3,(hHi-hLo)*0.08); let hmin=hLo-hPad,hmax=hHi+hPad;if(hmax<=hmin)hmax=hmin+1;
-  let sLo=sps.length?Math.min(...sps):0,sHi=sps.length?Math.max(...sps):1;
-  let sPad=Math.max(.3,(sHi-sLo)*0.08); let spmin=Math.max(0,sLo-sPad),spmax=sHi+sPad;if(spmax<=spmin)spmax=spmin+1;
-  let aLo=alts.length?Math.min(...alts):0,aHi=alts.length?Math.max(...alts):1;
-  let aPad=Math.max(2,(aHi-aLo)*0.08); let amin=aLo-aPad,amax=aHi+aPad;if(amax<=amin)amax=amin+1;
-
-  let px=t=>L+t/T*(W-L-R),
-      pyh=v=>TOP+(hmax-v)/(hmax-hmin)*PH,
-      pys=v=>TOP+(spmax-v)/(spmax-spmin)*PH,
-      pya=v=>TOP+(amax-v)/(amax-amin)*PH;
-
-  // Rutnät och tidsaxel — större text för läsbarhet.
-  ctx.font='16px system-ui';ctx.textBaseline='middle';ctx.strokeStyle='#e5e5e5';ctx.lineWidth=1;
-  for(let i=0;i<6;i++){
-    let t=T*i/5,x=px(t);ctx.beginPath();ctx.moveTo(x,TOP);ctx.lineTo(x,H-BOT);ctx.stroke();
-    ctx.fillStyle='#555';ctx.textAlign='center';ctx.fillText(secToClock(t),x,H-22)
-  }
-
-  // Horisontella linjer med två vänsterskalor och höjdskala till höger.
+  let c=chart,ctx=c.getContext('2d'),W=c.width,H=c.height;ctx.clearRect(0,0,W,H);ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);if(!records.length)return;
+  const L=CHART_L,R=chartRightMargin(),TOP=CHART_TOP,BOT=CHART_BOTTOM,PH=H-TOP-BOT;
+  let T=records.at(-1).elapsed,v0=Math.max(0,Math.min(viewStart,T)),v1=Math.max(v0+1,Math.min(viewEnd||T,T));
+  let recset=records.filter(r=>r.elapsed>=v0&&r.elapsed<=v1);if(!recset.length)recset=records;
+  let leftM=METRICS.hr,leftE=metricExtent(leftM,recset),rightKeys=selectedRightMetricKeys().filter(k=>hasMetricData(k));
+  let rightSeries=rightKeys.map((k,i)=>({key:k,m:METRICS[k],e:metricExtent(METRICS[k],recset),axisX:W-R+i*AXIS_COL+10})).filter(x=>x.e);
+  let px=t=>L+(t-v0)/(v1-v0)*(W-L-R);
+  let pyFor=e=>v=>TOP+(e.hi-v)/(e.hi-e.lo)*PH;
+  ctx.font='15px system-ui';ctx.textBaseline='middle';ctx.strokeStyle='#e5e5e5';ctx.lineWidth=1;
+  for(let i=0;i<6;i++){let t=v0+(v1-v0)*i/5,x=px(t);ctx.beginPath();ctx.moveTo(x,TOP);ctx.lineTo(x,H-BOT);ctx.stroke();ctx.fillStyle='#555';ctx.textAlign='center';ctx.fillText(secToClock(t),x,H-22)}
   for(let i=0;i<5;i++){
-    let f=i/4,y=TOP+PH*(1-f),hv=hmin+(hmax-hmin)*f,sv=spmin+(spmax-spmin)*f,av=amin+(amax-amin)*f;
-    ctx.beginPath();ctx.moveTo(L,y);ctx.lineTo(W-R,y);ctx.stroke();
-    ctx.fillStyle='#222';ctx.textAlign='right';ctx.fillText(hv.toFixed(0),48,y);
-    ctx.fillStyle='#666';ctx.fillText(sv.toFixed(1),105,y);
-    ctx.fillStyle='#1565c0';ctx.textAlign='left';ctx.fillText(av.toFixed(0),W-R+8,y)
+    let f=i/4,y=TOP+PH*(1-f);ctx.beginPath();ctx.moveTo(L,y);ctx.lineTo(W-R,y);ctx.stroke();
+    if(leftE){let lv=leftE.lo+(leftE.hi-leftE.lo)*f;ctx.fillStyle=leftM.color;ctx.textAlign='right';ctx.fillText(lv.toFixed(leftM.digits),L-8,y)}
+    for(let rs of rightSeries){let rv=rs.e.lo+(rs.e.hi-rs.e.lo)*f;ctx.fillStyle=rs.m.color;ctx.textAlign='left';ctx.fillText(rv.toFixed(rs.m.digits),rs.axisX,y)}
   }
-  ctx.font='bold 15px system-ui';ctx.textBaseline='alphabetic';
-  ctx.fillStyle='#222';ctx.textAlign='right';ctx.fillText('puls',48,19);
-  ctx.fillStyle='#666';ctx.fillText('km/h',105,19);
-  ctx.fillStyle='#1565c0';ctx.textAlign='left';ctx.fillText('höjd m',W-R+8,19);
-
-  let a=Math.min(selStart,selEnd),b=Math.max(selStart,selEnd);
-  ctx.fillStyle='#00000010';ctx.fillRect(px(a),TOP,px(b)-px(a),PH);
-
-  // Höjd ritas först så puls/fart ligger tydligt ovanpå.
-  if(alts.length){ctx.strokeStyle='#1565c0';ctx.lineWidth=2;ctx.setLineDash([6,4]);ctx.beginPath();let st=false;records.forEach(r=>{if(!Number.isFinite(r.altitude))return;let x=px(r.elapsed),y=pya(r.altitude);if(!st){ctx.moveTo(x,y);st=true}else ctx.lineTo(x,y)});ctx.stroke();ctx.setLineDash([])}
-  ctx.strokeStyle='#111';ctx.lineWidth=2;ctx.beginPath();let st=false;records.forEach(r=>{if(!Number.isFinite(r.hr))return;let x=px(r.elapsed),y=pyh(r.hr);if(!st){ctx.moveTo(x,y);st=true}else ctx.lineTo(x,y)});ctx.stroke();
-  ctx.strokeStyle='#777';ctx.lineWidth=2;ctx.beginPath();st=false;records.forEach(r=>{if(!Number.isFinite(r.speed))return;let x=px(r.elapsed),y=pys(r.speed);if(!st){ctx.moveTo(x,y);st=true}else ctx.lineTo(x,y)});ctx.stroke();
-
-  ctx.font='15px system-ui';ctx.textAlign='right';ctx.fillStyle='#111';ctx.fillText('Svart=puls   grå=fart   blå streckad=höjd',W-R,H-5)
+  // Axis titles / color legend
+  ctx.font='bold 14px system-ui';ctx.textBaseline='alphabetic';ctx.fillStyle=leftM.color;ctx.textAlign='left';ctx.fillText(`${leftM.label} (${leftM.unit})`,L,20);
+  for(let rs of rightSeries){ctx.save();ctx.fillStyle=rs.m.color;ctx.textAlign='left';ctx.fillText(`${rs.m.label}`,rs.axisX,20);ctx.font='12px system-ui';ctx.fillText(rs.m.unit,rs.axisX,36);ctx.restore()}
+  let a=Math.max(v0,Math.min(selStart,selEnd)),b=Math.min(v1,Math.max(selStart,selEnd));if(b>a){ctx.fillStyle='#00000010';ctx.fillRect(px(a),TOP,px(b)-px(a),PH)}
+  if(leftE){ctx.strokeStyle=leftM.color;drawSeries(ctx,recset,leftM.field,px,pyFor(leftE),leftM.dashed)}
+  for(let rs of rightSeries){ctx.strokeStyle=rs.m.color;drawSeries(ctx,recset,rs.m.field,px,pyFor(rs.e),rs.m.dashed)}
+  ctx.font='14px system-ui';ctx.textAlign='right';ctx.fillStyle='#555';let z=(v0>0||v1<T)?`Zoom ${secToClock(v0)}–${secToClock(v1)} · `:'';
+  let names=[leftM,...rightSeries.map(x=>x.m)].map(m=>m.label).join(' + ');ctx.fillText(`${z}${names}`,W-R,H-5)
 }
 
 function valueAt(t,field){
-  if(!records.length)return NaN;
-  if(t<=records[0].elapsed){let v=records[0][field];return Number.isFinite(v)?v:NaN}
-  if(t>=records.at(-1).elapsed){let v=records.at(-1)[field];return Number.isFinite(v)?v:NaN}
+  if(!records.length)return NaN;if(t<=records[0].elapsed){let v=records[0][field];return Number.isFinite(v)?v:NaN}if(t>=records.at(-1).elapsed){let v=records.at(-1)[field];return Number.isFinite(v)?v:NaN}
   let lo=0,hi=records.length-1;while(lo+1<hi){let m=(lo+hi)>>1;if(records[m].elapsed<t)lo=m;else hi=m}
-  let i=lo,j=hi;while(i>=0&&!Number.isFinite(records[i][field]))i--;while(j<records.length&&!Number.isFinite(records[j][field]))j++;
-  if(i<0||j>=records.length)return NaN;let r1=records[i],r2=records[j];if(r2.elapsed===r1.elapsed)return r1[field];
-  let f=(t-r1.elapsed)/(r2.elapsed-r1.elapsed);return r1[field]+f*(r2[field]-r1[field])
+  let i=lo,j=hi;while(i>=0&&!Number.isFinite(records[i][field]))i--;while(j<records.length&&!Number.isFinite(records[j][field]))j++;if(i<0||j>=records.length)return NaN;
+  let r1=records[i],r2=records[j];if(r2.elapsed===r1.elapsed)return r1[field];let f=(t-r1.elapsed)/(r2.elapsed-r1.elapsed);return r1[field]+f*(r2[field]-r1[field])
 }
-function clippedSeries(a,b,field){
-  let arr=[],va=valueAt(a,field),vb=valueAt(b,field);if(Number.isFinite(va))arr.push({t:a,v:va});
-  for(let r of records)if(r.elapsed>a&&r.elapsed<b&&Number.isFinite(r[field]))arr.push({t:r.elapsed,v:r[field]});
-  if(Number.isFinite(vb)&&(arr.length==0||b>arr.at(-1).t))arr.push({t:b,v:vb});return arr
-}
-function timeWeightedMean(a,b,field){
-  let s=clippedSeries(a,b,field);if(s.length<2)return s.length?s[0].v:NaN;let area=0,dtot=0;
-  for(let i=1;i<s.length;i++){let dt=s[i].t-s[i-1].t;if(dt>0){area+=(s[i-1].v+s[i].v)*0.5*dt;dtot+=dt}}
-  return dtot?area/dtot:NaN
-}
+function clippedSeries(a,b,field){let arr=[],va=valueAt(a,field),vb=valueAt(b,field);if(Number.isFinite(va))arr.push({t:a,v:va});for(let r of records)if(r.elapsed>a&&r.elapsed<b&&Number.isFinite(r[field]))arr.push({t:r.elapsed,v:r[field]});if(Number.isFinite(vb)&&(arr.length==0||b>arr.at(-1).t))arr.push({t:b,v:vb});return arr}
+function timeWeightedMean(a,b,field){let s=clippedSeries(a,b,field);if(s.length<2)return s.length?s[0].v:NaN;let area=0,dtot=0;for(let i=1;i<s.length;i++){let dt=s[i].t-s[i-1].t;if(dt>0){area+=(s[i-1].v+s[i].v)*0.5*dt;dtot+=dt}}return dtot?area/dtot:NaN}
 function ascentFromSeries(series){
   let alts=series.map(x=>x.v).filter(Number.isFinite);if(alts.length<3)return{asc:NaN,des:NaN};
-  // Robust profilberäkning: medianfilter för att minska barometer/GPS-brus, därefter sammanhängande backar >=3 m.
   const win=5,minClimb=3.0;let sm=[];
   for(let i=0;i<alts.length;i++){let a=Math.max(0,i-win),b=Math.min(alts.length-1,i+win),arr=[];for(let j=a;j<=b;j++)arr.push(alts[j]);arr.sort((x,y)=>x-y);sm.push(arr[Math.floor(arr.length/2)])}
   let asc=0,des=0,start=sm[0],last=sm[0],dir=0;
@@ -224,29 +298,28 @@ function calc(){
   let T=records.at(-1).elapsed,isFull=a<=0.5&&b>=T-0.5,dur=b-a;
   let d0=valueAt(a,'distance'),d1=valueAt(b,'distance'),dist=Number.isFinite(d0)&&Number.isFinite(d1)?(d1-d0)/1000:NaN;
   let hr=timeWeightedMean(a,b,'hr'),hrs=records.filter(r=>r.elapsed>=a&&r.elapsed<=b&&Number.isFinite(r.hr)).map(r=>r.hr),hrm=hrs.length?Math.max(...hrs):NaN;
-  let altSeries=clippedSeries(a,b,'altitude'),elev=altSeries.length>1?altSeries.at(-1).v-altSeries[0].v:NaN,adCalc=ascentFromSeries(altSeries),ad={...adCalc};
+  let power=timeWeightedMean(a,b,'power'),freq=timeWeightedMean(a,b,'frequencyNormalized');
+  let altSeries=clippedSeries(a,b,'altitude'),elev=altSeries.length>1?altSeries.at(-1).v-altSeries[0].v:NaN,adCalc=ascentFromSeries(altSeries);
   let displayDur=dur;
   if(isFull&&fileSummary){
     if(Number.isFinite(fileSummary.totalTimer)&&fileSummary.totalTimer>0)displayDur=fileSummary.totalTimer;
     if(Number.isFinite(fileSummary.totalDistance)&&fileSummary.totalDistance>0)dist=fileSummary.totalDistance/1000;
-    if(Number.isFinite(fileSummary.totalAscent))ad.asc=fileSummary.totalAscent;
-    if(Number.isFinite(fileSummary.totalDescent))ad.des=fileSummary.totalDescent;
-    if(Number.isFinite(fileSummary.avgHr))hr=fileSummary.avgHr;
-    if(Number.isFinite(fileSummary.maxHr))hrm=fileSummary.maxHr;
+    if(Number.isFinite(fileSummary.avgHr))hr=fileSummary.avgHr;if(Number.isFinite(fileSummary.maxHr))hrm=fileSummary.maxHr;if(Number.isFinite(fileSummary.avgPower))power=fileSummary.avgPower;
   }
   let speed=Number.isFinite(dist)&&displayDur>0?dist/(displayDur/3600):NaN;
-  mPeriod.textContent=`${secToClock(a)}–${secToClock(b)}`;mDur.textContent=secToClock(displayDur);mHr.textContent=fmt(hr,0);mHrMax.textContent=fmt(hrm,0);mSpeed.textContent=fmt(speed,2);mPace.textContent=pace(speed);mDist.textContent=fmt(dist,2)+' km';mAscent.textContent=fmt(ad.asc,0)+' m';mDescent.textContent=fmt(ad.des,0)+' m';mElev.textContent=fmt(elev,0)+' m';
+  mPeriod.textContent=`${secToClock(a)}–${secToClock(b)}`;mDur.textContent=secToClock(displayDur);mHr.textContent=fmt(hr,0);mHrMax.textContent=fmt(hrm,0);mSpeed.textContent=fmt(speed,2);mPace.textContent=pace(speed);mPower.textContent=Number.isFinite(power)?fmt(power,0)+' W':'–';mFreq.textContent=Number.isFinite(freq)?fmt(freq,0)+' cpm':'–';mDist.textContent=fmt(dist,2)+' km';mAscent.textContent=fmt(adCalc.asc,0)+' m';mDescent.textContent=fmt(adCalc.des,0)+' m';mElev.textContent=fmt(elev,0)+' m';
   if(isFull&&sourceKind==='FIT'&&fileSummary){
     let parts=[];
     if(Number.isFinite(fileSummary.totalAscent)&&Number.isFinite(adCalc.asc))parts.push(`stigning egen ${fmt(adCalc.asc,0)} m / Garmin ${fmt(fileSummary.totalAscent,0)} m (Δ ${adCalc.asc-fileSummary.totalAscent>=0?'+':''}${fmt(adCalc.asc-fileSummary.totalAscent,0)} m)`);
     if(Number.isFinite(fileSummary.totalDescent)&&Number.isFinite(adCalc.des))parts.push(`utför egen ${fmt(adCalc.des,0)} m / Garmin ${fmt(fileSummary.totalDescent,0)} m (Δ ${adCalc.des-fileSummary.totalDescent>=0?'+':''}${fmt(adCalc.des-fileSummary.totalDescent,0)} m)`);
     let rawD=Number.isFinite(d0)&&Number.isFinite(d1)?(d1-d0)/1000:NaN;if(Number.isFinite(rawD)&&Number.isFinite(fileSummary.totalDistance))parts.push(`distans punkter ${fmt(rawD,3)} km / Garmin ${fmt(fileSummary.totalDistance/1000,3)} km`);
     fitCompare.innerHTML='<b>Garmin FIT-kontroll:</b> '+(parts.length?parts.join(' · '):'Session-totaler saknas för jämförelsen.');
-  }else if(isFull&&sourceKind==='TCX'&&fileSummary){
-    fitCompare.innerHTML='<b>TCX-kontroll:</b> använder Lap-tid/distans när de finns. TCX innehåller normalt ingen Garmin-total för stigning/utför.';
-  }else if(!isFull){fitCompare.textContent='Markerat delintervall: höjdmeter beräknas från höjdprofilen; Garmin har ingen separat Session-total för just urvalet.'}
+  }else if(isFull&&sourceKind==='TCX'&&fileSummary){fitCompare.innerHTML='<b>TCX-kontroll:</b> använder Lap-tid/distans när de finns. TCX innehåller normalt ingen Garmin-total för stigning/utför.'}
+  else if(!isFull){fitCompare.textContent='Markerat delintervall: stigning/utför beräknas från höjdprofilen; Garmin har ingen separat Session-total för just urvalet.'}
   else fitCompare.textContent='Ingen Garmin FIT Session-sammanfattning hittades.';
-  window.lastStats={a,b,dur:displayDur,hr,hrm,speed,dist,elev,ascent:ad.asc,descent:ad.des,calcAscent:adCalc.asc,calcDescent:adCalc.des}
+  window.lastStats={a,b,dur:displayDur,hr,hrm,speed,power,freq,dist,elev,ascent:adCalc.asc,descent:adCalc.des}
 }
-makeRow.onclick=()=>{let st=window.lastStats;if(!st)return;let row={duration_min:+(st.dur/60).toFixed(2),duration_h:+(st.dur/3600).toFixed(3),avg_hr:Math.round(st.hr),max_hr:Math.round(st.hrm),avg_speed_kmh:+st.speed.toFixed(2),pace:pace(st.speed),distance_km:+st.dist.toFixed(3),ascent_m:Math.round(st.ascent),descent_m:Math.round(st.descent),elev_delta_m:Math.round(st.elev),note:'selected stable segment'};rowBox.value=Object.values(row).join('\t')+'\n\n'+JSON.stringify(row,null,2);preview.innerHTML='<tr>'+Object.keys(row).map(k=>`<th>${k}</th>`).join('')+'</tr><tr>'+Object.values(row).map(v=>`<td>${v}</td>`).join('')+'</tr>'}
-</script></body></html>
+makeRow.onclick=()=>{let st=window.lastStats;if(!st)return;let row={duration_min:+(st.dur/60).toFixed(2),duration_h:+(st.dur/3600).toFixed(3),avg_hr:Number.isFinite(st.hr)?Math.round(st.hr):'',max_hr:Number.isFinite(st.hrm)?Math.round(st.hrm):'',avg_speed_kmh:Number.isFinite(st.speed)?+st.speed.toFixed(2):'',avg_power_w:Number.isFinite(st.power)?Math.round(st.power):'',movement_frequency_cpm:Number.isFinite(st.freq)?+st.freq.toFixed(1):'',pace:pace(st.speed),distance_km:Number.isFinite(st.dist)?+st.dist.toFixed(3):'',ascent_m:Number.isFinite(st.ascent)?Math.round(st.ascent):'',descent_m:Number.isFinite(st.descent)?Math.round(st.descent):'',elev_delta_m:Number.isFinite(st.elev)?Math.round(st.elev):'',note:'selected stable segment'};rowBox.value=Object.values(row).join('\t')+'\n\n'+JSON.stringify(row,null,2);preview.innerHTML='<tr>'+Object.keys(row).map(k=>`<th>${k}</th>`).join('')+'</tr><tr>'+Object.values(row).map(v=>`<td>${v}</td>`).join('')+'</tr>'}
+</script>
+</body>
+</html>
